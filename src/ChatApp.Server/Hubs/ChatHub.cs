@@ -3,20 +3,22 @@ using ChatApp.Data.Entities;
 using ChatApp.Shared.DTOs;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 
 namespace ChatApp.Server.Hubs;
 
-public class ChatHub(ChatDbContext db) : Hub
+public class ChatHub(IDbContextFactory<ChatDbContext> dbFactory) : Hub
 {
     public async Task JoinRoom(Guid roomId, Guid userId)
     {
+        await using var db = await dbFactory.CreateDbContextAsync();
+
         var room = await db.Rooms.FindAsync(roomId);
         if (room is null) return;
 
         var user = await db.Users.FindAsync(userId);
         if (user is null) return;
 
-        // Pridaj do DB ak ešte nie je member
         var alreadyMember = await db.RoomMembers
             .AnyAsync(rm => rm.RoomId == roomId && rm.UserId == userId);
 
@@ -31,10 +33,8 @@ public class ChatHub(ChatDbContext db) : Hub
             await db.SaveChangesAsync();
         }
 
-        // Pridaj connection do SignalR group
         await Groups.AddToGroupAsync(Context.ConnectionId, roomId.ToString());
 
-        // Notifikuj ostatných
         await Clients.Group(roomId.ToString())
             .SendAsync("UserJoined", new UserDto(user.Id, user.Username));
     }
@@ -43,6 +43,7 @@ public class ChatHub(ChatDbContext db) : Hub
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomId.ToString());
 
+        await using var db = await dbFactory.CreateDbContextAsync();
         var user = await db.Users.FindAsync(userId);
         if (user is null) return;
 
@@ -53,6 +54,9 @@ public class ChatHub(ChatDbContext db) : Hub
     public async Task SendMessage(Guid roomId, Guid userId, string content)
     {
         if (string.IsNullOrWhiteSpace(content)) return;
+        if (content.Length > 2000) return;
+
+        await using var db = await dbFactory.CreateDbContextAsync();
 
         var user = await db.Users.FindAsync(userId);
         if (user is null) return;
@@ -82,6 +86,12 @@ public class ChatHub(ChatDbContext db) : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
+        if (exception is not null)
+        {
+            Log.Warning(exception, "Client disconnected with error: {ConnectionId}",
+                Context.ConnectionId);
+        }
+
         await base.OnDisconnectedAsync(exception);
     }
 }
