@@ -3,9 +3,30 @@ CLIENT_PROJECT = src/ChatApp.Client
 DATA_PROJECT   = src/ChatApp.Data
 PID_DIR        = .pids
 
-# ── Spustenie ──────────────────────────────────────────
+.PHONY: start start-server start-client stop restart upgrade clean migrate build check-deps restore
 
-.PHONY: start start-server start-client stop restart upgrade clean migrate build
+# ── Kontrola zavislosti ───────────────────────────────────────
+
+check-deps:
+	@echo "Kontrolujem zavislosti..."
+	@command -v dotnet >/dev/null 2>&1 || { echo "CHYBA: dotnet SDK nie je nainstalovany. https://dotnet.microsoft.com/download"; exit 1; }
+	@dotnet --version | grep -q "^10\." || { echo "UPOZORNENIE: Ocakavany .NET 10 SDK, najdeny: $$(dotnet --version)"; }
+	@dotnet tool list --global 2>/dev/null | grep -q "dotnet-ef" || { echo "CHYBA: dotnet-ef nie je nainstalovany. Spustite: dotnet tool install --global dotnet-ef"; exit 1; }
+	@command -v mysql >/dev/null 2>&1 || echo "UPOZORNENIE: mysql klient nenajdeny. Uistite sa, ze MySQL server bezi."
+	@command -v git >/dev/null 2>&1 || { echo "CHYBA: git nie je nainstalovany."; exit 1; }
+	@echo "Vsetky zavislosti OK."
+
+# ── Restore + Build ──────────────────────────────────────────
+
+restore: check-deps
+	@echo "Instalujem NuGet balicky..."
+	@dotnet restore --verbosity quiet
+
+build: restore
+	@echo "Kompilujem projekty..."
+	@dotnet build --no-restore --verbosity quiet
+
+# ── Spustenie ──────────────────────────────────────────
 
 start: build start-server start-client
 	@echo "Aplikacia bezi. Server + klient spustene."
@@ -37,15 +58,13 @@ stop:
 # ── Restart ────────────────────────────────────────────
 
 restart: stop start
-	@echo "Aplikacia restartovana."
 
 # ── Upgrade ────────────────────────────────────────────
 
-upgrade: stop
+upgrade: stop check-deps
 	@echo "Stahujem najnovsie zmeny..."
 	git pull
-	@echo "Instalujem zavislosti..."
-	dotnet restore
+	@$(MAKE) restore
 	@echo "Spustam migracie..."
 	dotnet ef database update --project $(DATA_PROJECT) --startup-project $(SERVER_PROJECT)
 	@$(MAKE) start
@@ -53,11 +72,7 @@ upgrade: stop
 
 # ── Pomocne prikazy ────────────────────────────────────
 
-build:
-	@echo "Kompilujem projekty..."
-	@dotnet build --verbosity quiet
-
-migrate:
+migrate: check-deps
 	dotnet ef database update --project $(DATA_PROJECT) --startup-project $(SERVER_PROJECT)
 
 clean:
