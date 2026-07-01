@@ -1,0 +1,33 @@
+# =============================================================
+#  ChatApp - Systemove poziadavky a zavislosti
+# =============================================================
+#
+#  Tento subor sluzi ako prehlad vsetkych zavislosti potrebnych
+#  na build a spustenie aplikacie. NuGet balicky sa instaluju
+#  automaticky cez "dotnet restore", tu su len pre dokumentaciu.
+#
+
+# ── Systemove nastroje ────────────────────────────────────────
+
+dotnet-sdk >= 10.0           # https://dotnet.microsoft.com/download
+dotnet-ef  >= 9.0            # dotnet tool install --global dotnet-ef
+mysql-server >= 8.0          # https://dev.mysql.com/downloads/
+git                          # https://git-scm.com/downloads
+
+# ── NuGet balicky (server) ────────────────────────────────────
+
+Microsoft.AspNetCore.OpenApi           = 10.0.3
+Microsoft.EntityFrameworkCore.Design   = 9.0.*
+Serilog.AspNetCore                     = 10.0.0
+
+# ── NuGet balicky (klient / WPF) ─────────────────────────────
+
+CommunityToolkit.Mvvm                  = 8.*
+Microsoft.AspNetCore.SignalR.Client    = 10.*
+Microsoft.Extensions.Configuration.Json = 10.*
+Microsoft.Extensions.Hosting           = 10.*
+
+# ── NuGet balicky (datova vrstva) ─────────────────────────────
+
+Microsoft.EntityFrameworkCore          = 9.0.*
+Pomelo.EntityFrameworkCore.MySql       = 9.0.0
