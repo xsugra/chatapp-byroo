@@ -19,6 +19,7 @@ public partial class App : Application
         var configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false)
+            .AddEnvironmentVariables()
             .Build();
 
         var services = new ServiceCollection();
@@ -43,10 +44,17 @@ public partial class App : Application
         loginView.Show();
     }
 
-    protected override void OnExit(ExitEventArgs e)
+    protected override async void OnExit(ExitEventArgs e)
     {
-        if (_serviceProvider is IDisposable disposable)
-            disposable.Dispose();
+        if (_serviceProvider is not null)
+        {
+            var chatService = _serviceProvider.GetService<IChatService>();
+            if (chatService is not null)
+                await chatService.DisconnectAsync();
+
+            if (_serviceProvider is IDisposable disposable)
+                disposable.Dispose();
+        }
 
         base.OnExit(e);
     }
