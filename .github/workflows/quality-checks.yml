@@ -21,9 +21,7 @@ jobs:
         dotnet-version: '10.0.x'
     
     - name: Install code analysis tools
-      run: |
-        dotnet tool install -g dotnet-format
-        dotnet tool install -g dotnet-codeanalysis
+      run: dotnet tool install -g dotnet-format
     
     - name: Check code formatting
       run: dotnet format --verify-no-changes --verbosity diagnostic
