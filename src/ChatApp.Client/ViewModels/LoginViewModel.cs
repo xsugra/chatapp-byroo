@@ -9,14 +9,11 @@ namespace ChatApp.Client.ViewModels;
 
 public partial class LoginViewModel(IChatService chatService, IServiceProvider serviceProvider) : ObservableObject
 {
-    [ObservableProperty]
-    private string _username = string.Empty;
+    [ObservableProperty] private string _username = string.Empty;
 
-    [ObservableProperty]
-    private string _errorMessage = string.Empty;
+    [ObservableProperty] private string _errorMessage = string.Empty;
 
-    [ObservableProperty]
-    private bool _isLoading;
+    [ObservableProperty] private bool _isLoading;
 
     [RelayCommand]
     private async Task LoginAsync()
@@ -49,7 +46,10 @@ public partial class LoginViewModel(IChatService chatService, IServiceProvider s
             mainView.DataContext = mainVm;
             mainView.Show();
 
-            // Zatvor login okno
+// Nastav MainView ako hlavné okno PRED zatvorením loginu
+            Application.Current.MainWindow = mainView;
+
+// Zatvor login okno
             Application.Current.Windows
                 .OfType<LoginView>()
                 .FirstOrDefault()?.Close();
