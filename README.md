@@ -10,10 +10,11 @@ Celá aplikácia funguje lokálne - klient aj server bežia na tom istom stroji 
 1. [Technologický stack](#1-technologický-stack)
 2. [Štruktúra projektu](#2-štruktúra-projektu)
 3. [Ako to spustiť](#3-ako-to-spustiť)
-4. [REST API endpointy](#4-rest-api-endpointy)
-5. [SignalR Hub](#5-signalr-hub)
-6. [Databáza](#6-databáza)
-7. [Rozhodnutia pri riešení](#7-rozhodnutia-pri-riešení)
+4. [Správa aplikácie](#4-správa-aplikácie)
+5. [REST API endpointy](#5-rest-api-endpointy)
+6. [SignalR Hub](#6-signalr-hub)
+7. [Databáza](#7-databáza)
+8. [Rozhodnutia pri riešení](#8-rozhodnutia-pri-riešení)
 
 ---
 
@@ -72,8 +73,25 @@ src/
 
 ### Predpoklady
 
-- .NET 10 SDK
+- .NET 10 SDK — [https://dotnet.microsoft.com/download](https://dotnet.microsoft.com/download)
+- Entity Framework CLI — `dotnet tool install --global dotnet-ef`
 - MySQL server (lokálne bežiaci, napr. XAMPP alebo samostatná inštalácia)
+- Git
+- Na macOS je navyše potrebný `make` (súčasť Xcode Command Line Tools)
+
+Kompletný zoznam závislostí vrátane NuGet balíčkov je v súbore `requirements.txt`.
+
+Skripty `manage.ps1` (Windows) aj `Makefile` (macOS) pri každom spustení automaticky skontrolujú, či sú všetky systémové nástroje nainštalované, a ak niečo chýba, vypíšu čo treba doinštalovať. Na overenie bez spúšťania aplikácie:
+
+```powershell
+# Windows
+.\manage.ps1 check
+```
+
+```bash
+# macOS
+make check-deps
+```
 
 ### Krok za krokom
 
@@ -87,24 +105,32 @@ CREATE USER 'chatapp'@'localhost' IDENTIFIED BY 'chatapp_dev';
 GRANT ALL PRIVILEGES ON chatapp.* TO 'chatapp'@'localhost';
 ```
 
-**2. Konfigurácia (.env)**
+**2. Konfigurácia**
 
-Skopírujte `.env.example` do `.env` v koreňovom adresári a upravte hodnoty podľa vášho prostredia:
+Citlivé údaje (connection string, URL servera) nie sú uložené priamo v kóde - načítajú sa z environment premenných. V koreňovom adresári je súbor `.env.example`, ktorý slúži ako šablóna.
+
+Na **Windows** (PowerShell):
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Na **macOS** (Terminal):
 
 ```bash
 cp .env.example .env
 ```
 
-Obsah `.env`:
+Obsah `.env` potom upravte podľa vášho prostredia:
 
 ```
 ConnectionStrings__DefaultConnection=Server=localhost;Database=chatapp;User=chatapp;Password=chatapp_dev
 ServerUrl=http://localhost:5050
 ```
 
-Connection string a URL servera nie sú uložené priamo v kóde - načítajú sa z environment premenných. Súbor `.env` je v `.gitignore`, takže sa nedostane do repozitára.
+Súbor `.env` je v `.gitignore`, takže sa nedostane do repozitára.
 
-Alternatívne môžete vytvoriť `src/ChatApp.Server/appsettings.Development.json`:
+Alternatívne môžete vytvoriť `src/ChatApp.Server/appsettings.Development.json` (tiež v `.gitignore`):
 
 ```json
 {
@@ -115,11 +141,9 @@ Alternatívne môžete vytvoriť `src/ChatApp.Server/appsettings.Development.jso
 }
 ```
 
-Aj tento súbor je v `.gitignore`.
-
 **3. Migrácie**
 
-```bash
+```
 dotnet ef database update --project src/ChatApp.Data --startup-project src/ChatApp.Server
 ```
 
@@ -127,27 +151,59 @@ Toto vytvorí všetky tabuľky (Users, Rooms, Messages, RoomMembers).
 
 **4. Spustenie servera**
 
-```bash
+```
 dotnet run --project src/ChatApp.Server
 ```
 
-Server štartuje na porte, ktorý je nastavený v `launchSettings.json` (štandardne `http://localhost:5050`).
+Server štartuje na porte, ktorý je nastavený v konfigurácii (štandardne `http://localhost:5050`).
 
 **5. Spustenie klienta**
 
-```bash
+```
 dotnet run --project src/ChatApp.Client
 ```
 
-URL servera, na ktorý sa klient pripája, sa berie z environment premennej `ServerUrl`. Ak nie je nastavená, použije sa fallback `http://localhost:5050` z `appsettings.json`. Ak server beží na inom porte alebo IP, stačí zmeniť hodnotu v `.env`.
+URL servera, na ktorý sa klient pripája, sa berie z environment premennej `ServerUrl`. Ak nie je nastavená, použije sa fallback `http://localhost:5050` z `appsettings.json`.
 
 **6. Testovanie**
 
-Pre vyskúšanie chatu medzi dvoma používateľmi stačí spustiť klienta dvakrát (dva terminály alebo dve inštancie). Každý sa prihlási pod iným menom, obaja sa pripoja do rovnakej miestnosti a správy sa zobrazujú v reálnom čase.
+Pre vyskúšanie chatu medzi dvoma používateľmi stačí spustiť klienta dvakrát. Každý sa prihlási pod iným menom, obaja sa pripoja do rovnakej miestnosti a správy sa zobrazujú v reálnom čase.
 
 ---
 
-## 4. REST API endpointy
+## 4. Správa aplikácie
+
+Pre zjednodušenie bežných operácií sú k dispozícii skripty, ktoré riadia celú aplikáciu jedným príkazom. Na macOS sa používa `Makefile`, na Windows `manage.ps1` (PowerShell skript).
+
+### Windows (PowerShell)
+
+| Príkaz | Čo robí |
+|---|---|
+| `.\manage.ps1 start` | Skompiluje a spustí server + klient |
+| `.\manage.ps1 stop` | Zastaví oba procesy |
+| `.\manage.ps1 restart` | Zastaví a znovu spustí |
+| `.\manage.ps1 upgrade` | Zastaví, pullne nový kód, migrácie, spustí |
+| `.\manage.ps1 migrate` | Spustí len databázové migrácie |
+| `.\manage.ps1 build` | Skompiluje bez spustenia |
+| `.\manage.ps1 clean` | Vyčistí build artefakty |
+
+### macOS (Terminal)
+
+| Príkaz | Čo robí |
+|---|---|
+| `make start` | Skompiluje a spustí server + klient |
+| `make stop` | Zastaví oba procesy |
+| `make restart` | Zastaví a znovu spustí |
+| `make upgrade` | Zastaví, pullne nový kód, migrácie, spustí |
+| `make migrate` | Spustí len databázové migrácie |
+| `make build` | Skompiluje bez spustenia |
+| `make clean` | Vyčistí build artefakty |
+
+Oba skripty si pamätajú PID spustených procesov v priečinku `.pids/`, takže `stop` vie spoľahlivo zastaviť správne procesy.
+
+---
+
+## 5. REST API endpointy
 
 Server poskytuje tri controllery pre základné operácie:
 
@@ -162,7 +218,7 @@ Login funguje jednoducho - pošle sa username, ak používateľ s týmto menom n
 
 ---
 
-## 5. SignalR Hub
+## 6. SignalR Hub
 
 WebSocket komunikácia prebieha cez `ChatHub` na endpoint `/chat`. Hub poskytuje tri metódy:
 
@@ -179,7 +235,7 @@ Hub používa `IDbContextFactory<ChatDbContext>` namiesto priameho injectovania 
 
 ---
 
-## 6. Databáza
+## 7. Databáza
 
 Databázový model obsahuje štyri entity:
 
@@ -192,7 +248,7 @@ EF Core konfigurácie sú v `ChatApp.Data/Configurations/` a definujú indexy (n
 
 ---
 
-## 7. Rozhodnutia pri riešení
+## 8. Rozhodnutia pri riešení
 
 **Prečo SignalR a nie čistý WebSocket?**
 SignalR je nadstavba nad WebSocket, ktorá rieši reconnect, fallback na long-polling ak WebSocket nie je dostupný, a groupovanie spojení. Pre chat aplikáciu je to ideálne, lebo netreba manuálne riešiť odpájanie a opätovné pripájanie klientov.
