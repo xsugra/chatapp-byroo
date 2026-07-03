@@ -8,6 +8,9 @@
 
     <Window.Resources>
         <converters:IsOwnMessageConverter x:Key="IsOwnMessageConverter" />
+        <converters:GuidEqualsConverter x:Key="GuidEqualsConverter" />
+        <converters:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <converters:StringNotEmptyToVisibilityConverter x:Key="StringNotEmptyToVis" />
     </Window.Resources>
 
     <Grid>
@@ -20,9 +23,13 @@
         <Border Grid.Column="0" BorderBrush="#DDD" BorderThickness="0,0,1,0">
             <DockPanel Margin="10">
 
-                <TextBlock DockPanel.Dock="Top"
-                           Text="Rooms" FontSize="16" FontWeight="Bold"
-                           Margin="0,0,0,10" />
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                    <Button DockPanel.Dock="Right"
+                            Content="Logout"
+                            Command="{Binding LogoutCommand}"
+                            FontSize="11" Padding="6,2" />
+                    <TextBlock Text="Rooms" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
+                </DockPanel>
 
                 <!-- Create room -->
                 <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
@@ -43,11 +50,64 @@
                          Margin="0,0,0,0">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <StackPanel Margin="4">
-                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding MemberCount, StringFormat='{}{0} members'}"
-                                           FontSize="11" Foreground="Gray" />
-                            </StackPanel>
+                            <Grid>
+                                <StackPanel x:Name="ViewPanel" Margin="4">
+                                    <DockPanel>
+                                        <StackPanel x:Name="RoomOwnerButtons"
+                                                    DockPanel.Dock="Right"
+                                                    Orientation="Horizontal"
+                                                    Visibility="Collapsed">
+                                            <Button Content="Rename" FontSize="10" Padding="4,0" Margin="2,0,0,0"
+                                                    Command="{Binding DataContext.StartRenameRoomCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}" />
+                                            <Button Content="Delete" FontSize="10" Padding="4,0" Margin="2,0,0,0"
+                                                    Command="{Binding DataContext.DeleteRoomCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                    </DockPanel>
+                                    <TextBlock Text="{Binding MemberCount, StringFormat='{}{0} members'}"
+                                               FontSize="11" Foreground="Gray" />
+                                </StackPanel>
+
+                                <StackPanel x:Name="EditPanel" Margin="4" Visibility="Collapsed">
+                                    <TextBox Padding="2"
+                                             Text="{Binding DataContext.EditRoomNameInput, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}">
+                                        <TextBox.InputBindings>
+                                            <KeyBinding Key="Enter" Command="{Binding DataContext.ConfirmRenameRoomCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                            <KeyBinding Key="Escape" Command="{Binding DataContext.CancelRenameRoomCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                        </TextBox.InputBindings>
+                                    </TextBox>
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                        <Button Content="Save" FontSize="10" Padding="4,0"
+                                                Command="{Binding DataContext.ConfirmRenameRoomCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                        <Button Content="Cancel" FontSize="10" Padding="4,0" Margin="4,0,0,0"
+                                                Command="{Binding DataContext.CancelRenameRoomCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+
+                            <DataTemplate.Triggers>
+                                <DataTrigger Value="True">
+                                    <DataTrigger.Binding>
+                                        <MultiBinding Converter="{StaticResource GuidEqualsConverter}">
+                                            <Binding Path="CreatedByUserId" />
+                                            <Binding Path="DataContext.CurrentUserId" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                        </MultiBinding>
+                                    </DataTrigger.Binding>
+                                    <Setter TargetName="RoomOwnerButtons" Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                                <DataTrigger Value="True">
+                                    <DataTrigger.Binding>
+                                        <MultiBinding Converter="{StaticResource GuidEqualsConverter}">
+                                            <Binding Path="Id" />
+                                            <Binding Path="DataContext.EditingRoomId" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                        </MultiBinding>
+                                    </DataTrigger.Binding>
+                                    <Setter TargetName="ViewPanel" Property="Visibility" Value="Collapsed" />
+                                    <Setter TargetName="EditPanel" Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
@@ -58,10 +118,14 @@
         <DockPanel Grid.Column="1" Margin="10">
 
             <!-- Status bar -->
-            <TextBlock DockPanel.Dock="Top"
-                       Text="{Binding ConnectionStatus}"
-                       FontSize="11" Foreground="Gray"
-                       Margin="0,0,0,10" />
+            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                <TextBlock Text="{Binding ConnectionStatus}"
+                           FontSize="11" Foreground="Gray" />
+                <TextBlock Text="{Binding ErrorMessage}"
+                           FontSize="11" Foreground="Red"
+                           TextWrapping="Wrap"
+                           Visibility="{Binding ErrorMessage, Converter={StaticResource StringNotEmptyToVis}}" />
+            </StackPanel>
 
             <!-- Message input -->
             <Grid DockPanel.Dock="Bottom" Margin="0,10,0,0">
@@ -123,13 +187,73 @@
                                                FontWeight="Bold" FontSize="12" />
                                     <TextBlock Text="{Binding SentAt, StringFormat='{}{0:HH:mm}'}"
                                                FontSize="11" Foreground="Gray"
-                                               HorizontalAlignment="Right" />
+                                               HorizontalAlignment="Right" Margin="6,0,0,0" />
+                                    <TextBlock Text="(edited)"
+                                               FontSize="11" Foreground="Gray" FontStyle="Italic"
+                                               HorizontalAlignment="Right" Margin="6,0,0,0"
+                                               Visibility="{Binding IsEdited, Converter={StaticResource BoolToVis}}" />
                                 </DockPanel>
-                                <TextBlock Text="{Binding Content}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,4,0,0" />
+
+                                <StackPanel x:Name="ViewContent">
+                                    <TextBlock Text="{Binding Content}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,4,0,0" />
+                                    <StackPanel x:Name="MessageOwnerButtons"
+                                                Orientation="Horizontal"
+                                                Margin="0,4,0,0"
+                                                Visibility="Collapsed">
+                                        <Button Content="Edit" FontSize="10" Padding="4,0"
+                                                Command="{Binding DataContext.StartEditMessageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Content="Delete" FontSize="10" Padding="4,0" Margin="4,0,0,0"
+                                                Command="{Binding DataContext.DeleteMessageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel x:Name="EditContent" Margin="0,4,0,0" Visibility="Collapsed">
+                                    <TextBox Padding="2" TextWrapping="Wrap"
+                                             Text="{Binding DataContext.EditMessageInput, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}">
+                                        <TextBox.InputBindings>
+                                            <KeyBinding Key="Enter" Command="{Binding DataContext.ConfirmEditMessageCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                            <KeyBinding Key="Escape" Command="{Binding DataContext.CancelEditMessageCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                        </TextBox.InputBindings>
+                                    </TextBox>
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                        <Button Content="Save" FontSize="10" Padding="4,0"
+                                                Command="{Binding DataContext.ConfirmEditMessageCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                        <Button Content="Cancel" FontSize="10" Padding="4,0" Margin="4,0,0,0"
+                                                Command="{Binding DataContext.CancelEditMessageCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                    </StackPanel>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
+
+                        <DataTemplate.Triggers>
+                            <DataTrigger Value="True">
+                                <DataTrigger.Binding>
+                                    <MultiBinding Converter="{StaticResource IsOwnMessageConverter}">
+                                        <Binding Path="SenderName" />
+                                        <Binding Path="DataContext.CurrentUsername"
+                                                 RelativeSource="{RelativeSource AncestorType=Window}" />
+                                    </MultiBinding>
+                                </DataTrigger.Binding>
+                                <Setter TargetName="MessageOwnerButtons" Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsDeleted}" Value="True">
+                                <Setter TargetName="MessageOwnerButtons" Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <DataTrigger Value="True">
+                                <DataTrigger.Binding>
+                                    <MultiBinding Converter="{StaticResource GuidEqualsConverter}">
+                                        <Binding Path="Id" />
+                                        <Binding Path="DataContext.EditingMessageId" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                    </MultiBinding>
+                                </DataTrigger.Binding>
+                                <Setter TargetName="ViewContent" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="EditContent" Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
