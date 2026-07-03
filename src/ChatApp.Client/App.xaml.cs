@@ -3,6 +3,7 @@ using System.Windows;
 using ChatApp.Client.Services;
 using ChatApp.Client.ViewModels;
 using ChatApp.Client.Views;
+using DotNetEnv;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,6 +16,14 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Načítaj .env zo záhlavia repozitára (ak existuje) - hodnoty sa nastavia ako
+        // skutočné environment premenné, ktoré nižšie prečíta AddEnvironmentVariables().
+        var envDir = AppContext.BaseDirectory;
+        while (envDir is not null && !File.Exists(Path.Combine(envDir, ".env")))
+            envDir = Directory.GetParent(envDir)?.FullName;
+        if (envDir is not null)
+            Env.Load(Path.Combine(envDir, ".env"));
 
         var configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
