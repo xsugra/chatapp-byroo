@@ -76,12 +76,72 @@ public class ChatHub(IDbContextFactory<ChatDbContext> dbFactory) : Hub
         var dto = new MessageDto(
             message.Id,
             message.Content,
+            message.SenderId,
             user.Username,
             message.RoomId,
-            message.SentAt);
+            message.SentAt,
+            message.IsEdited,
+            message.IsDeleted);
 
         await Clients.Group(roomId.ToString())
             .SendAsync("ReceiveMessage", dto);
+    }
+
+    public async Task EditMessage(Guid roomId, Guid messageId, Guid userId, string newContent)
+    {
+        if (string.IsNullOrWhiteSpace(newContent)) return;
+        if (newContent.Length > 2000) return;
+
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        var message = await db.Messages.Include(m => m.Sender).FirstOrDefaultAsync(m => m.Id == messageId);
+        if (message is null || message.RoomId != roomId || message.IsDeleted) return;
+        if (message.SenderId != userId) return;
+
+        message.Content = newContent.Trim();
+        message.IsEdited = true;
+        message.EditedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+
+        var dto = new MessageDto(
+            message.Id,
+            message.Content,
+            message.SenderId,
+            message.Sender.Username,
+            message.RoomId,
+            message.SentAt,
+            message.IsEdited,
+            message.IsDeleted);
+
+        await Clients.Group(roomId.ToString())
+            .SendAsync("MessageUpdated", dto);
+    }
+
+    public async Task DeleteMessage(Guid roomId, Guid messageId, Guid userId)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        var message = await db.Messages.Include(m => m.Sender).FirstOrDefaultAsync(m => m.Id == messageId);
+        if (message is null || message.RoomId != roomId || message.IsDeleted) return;
+        if (message.SenderId != userId) return;
+
+        message.IsDeleted = true;
+        message.DeletedAt = DateTime.UtcNow;
+        message.Content = "[message deleted]";
+        await db.SaveChangesAsync();
+
+        var dto = new MessageDto(
+            message.Id,
+            message.Content,
+            message.SenderId,
+            message.Sender.Username,
+            message.RoomId,
+            message.SentAt,
+            message.IsEdited,
+            message.IsDeleted);
+
+        await Clients.Group(roomId.ToString())
+            .SendAsync("MessageUpdated", dto);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
