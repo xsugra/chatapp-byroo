@@ -101,9 +101,10 @@ function Start-App {
 
 function Stop-App {
     if (Test-Path .pids/client.pid) {
-        $pid = Get-Content .pids/client.pid
+        $clientPid = Get-Content .pids/client.pid
         try {
-            Stop-Process -Id $pid -Force -ErrorAction Stop
+            # "dotnet run" spusti skutocny proces ako child - treba zabit cely strom (/T)
+            taskkill /PID $clientPid /T /F 2>$null | Out-Null
             Write-Host "Klient zastaveny."
         } catch {
             Write-Host "Klient uz nebezi."
@@ -112,9 +113,9 @@ function Stop-App {
     }
 
     if (Test-Path .pids/server.pid) {
-        $pid = Get-Content .pids/server.pid
+        $serverPid = Get-Content .pids/server.pid
         try {
-            Stop-Process -Id $pid -Force -ErrorAction Stop
+            taskkill /PID $serverPid /T /F 2>$null | Out-Null
             Write-Host "Server zastaveny."
         } catch {
             Write-Host "Server uz nebezi."
