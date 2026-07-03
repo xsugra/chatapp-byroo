@@ -10,5 +10,10 @@ public class RoomConfiguration : IEntityTypeConfiguration<Room>
     {
         builder.Property(r => r.Name).HasMaxLength(100);
         builder.HasIndex(r => r.Name).IsUnique();
+
+        builder.HasOne(r => r.CreatedByUser)
+            .WithMany()
+            .HasForeignKey(r => r.CreatedByUserId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }
