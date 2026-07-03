@@ -13,9 +13,12 @@ public class ChatService : IChatService, IDisposable
     private readonly string _serverUrl;
 
     public event EventHandler<MessageDto>? MessageReceived;
+    public event EventHandler<MessageDto>? MessageUpdated;
     public event EventHandler<UserDto>? UserJoined;
     public event EventHandler<UserDto>? UserLeft;
     public event EventHandler<string>? ConnectionStatusChanged;
+    public event EventHandler<RoomDto>? RoomRenamed;
+    public event EventHandler<Guid>? RoomDeleted;
 
     public bool IsConnected => _hub?.State == HubConnectionState.Connected;
 
@@ -44,10 +47,10 @@ public class ChatService : IChatService, IDisposable
         return await _http.GetFromJsonAsync<List<RoomDto>>("api/rooms") ?? [];
     }
 
-    public async Task<RoomDto?> CreateRoomAsync(string name)
+    public async Task<RoomDto?> CreateRoomAsync(string name, Guid userId)
     {
         var response = await _http.PostAsJsonAsync(
-            "api/rooms",
+            $"api/rooms?userId={userId}",
             new CreateRoomRequest(name));
 
         response.EnsureSuccessStatusCode();
@@ -58,6 +61,22 @@ public class ChatService : IChatService, IDisposable
     {
         return await _http.GetFromJsonAsync<List<MessageDto>>(
             $"api/rooms/{roomId}/messages?page={page}") ?? [];
+    }
+
+    public async Task<RoomDto?> RenameRoomAsync(Guid roomId, string newName, Guid userId)
+    {
+        var response = await _http.PatchAsJsonAsync(
+            $"api/rooms/{roomId}?userId={userId}",
+            new RenameRoomRequest(newName));
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<RoomDto>();
+    }
+
+    public async Task DeleteRoomAsync(Guid roomId, Guid userId)
+    {
+        var response = await _http.DeleteAsync($"api/rooms/{roomId}?userId={userId}");
+        response.EnsureSuccessStatusCode();
     }
 
     // ── SignalR ───────────────────────────────────────────
@@ -72,11 +91,20 @@ public class ChatService : IChatService, IDisposable
         _hub.On<MessageDto>("ReceiveMessage", msg =>
             MessageReceived?.Invoke(this, msg));
 
+        _hub.On<MessageDto>("MessageUpdated", msg =>
+            MessageUpdated?.Invoke(this, msg));
+
         _hub.On<UserDto>("UserJoined", user =>
             UserJoined?.Invoke(this, user));
 
         _hub.On<UserDto>("UserLeft", user =>
             UserLeft?.Invoke(this, user));
+
+        _hub.On<RoomDto>("RoomRenamed", room =>
+            RoomRenamed?.Invoke(this, room));
+
+        _hub.On<Guid>("RoomDeleted", roomId =>
+            RoomDeleted?.Invoke(this, roomId));
 
         _hub.Reconnecting += _ =>
         {
@@ -116,6 +144,18 @@ public class ChatService : IChatService, IDisposable
     {
         if (_hub is not null)
             await _hub.InvokeAsync("SendMessage", roomId, userId, content);
+    }
+
+    public async Task EditMessageAsync(Guid roomId, Guid messageId, Guid userId, string newContent)
+    {
+        if (_hub is not null)
+            await _hub.InvokeAsync("EditMessage", roomId, messageId, userId, newContent);
+    }
+
+    public async Task DeleteMessageAsync(Guid roomId, Guid messageId, Guid userId)
+    {
+        if (_hub is not null)
+            await _hub.InvokeAsync("DeleteMessage", roomId, messageId, userId);
     }
 
     public async Task DisconnectAsync()
