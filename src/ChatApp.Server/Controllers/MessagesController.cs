@@ -26,9 +26,12 @@ public class MessagesController(ChatDbContext db) : ControllerBase
             .Select(m => new MessageDto(
                 m.Id,
                 m.Content,
+                m.SenderId,
                 m.Sender.Username,
                 m.RoomId,
-                m.SentAt))
+                m.SentAt,
+                m.IsEdited,
+                m.IsDeleted))
             .ToListAsync();
 
         // Vráť v chronologickom poradí (najstaršia prvá)
