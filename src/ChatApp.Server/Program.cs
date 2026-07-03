@@ -1,7 +1,16 @@
 using ChatApp.Data;
 using ChatApp.Server.Hubs;
+using DotNetEnv;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
+
+// Načítaj .env zo záhlavia repozitára (ak existuje) - hodnoty sa nastavia ako
+// skutočné environment premenné, ktoré nižšie prečíta builder.Configuration.
+var envDir = Directory.GetCurrentDirectory();
+while (envDir is not null && !File.Exists(Path.Combine(envDir, ".env")))
+    envDir = Directory.GetParent(envDir)?.FullName;
+if (envDir is not null)
+    Env.Load(Path.Combine(envDir, ".env"));
 
 var builder = WebApplication.CreateBuilder(args);
 
